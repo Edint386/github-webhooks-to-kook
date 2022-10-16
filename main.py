@@ -19,9 +19,8 @@ com_temp = {}
 
 guild_setting = {}
 routes = web.RouteTableDef()
-from khl.card import CardMessage, Card, Module, Element, Types, Struct
-f = open('config.json','r')
-bot = Bot(token=json.loads(f.read())['token'])
+
+bot = Bot(token='xxxxxxxxxxxxxxxxxx')
 f.close()
 
 # 读取文件
