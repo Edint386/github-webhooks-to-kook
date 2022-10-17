@@ -107,23 +107,37 @@ async def github_webhook(request: web.Request):
         sender_name = data["sender"]["login"]
         sender_url = data["sender"]["url"]
         sender_avatar = data["sender"]["avatar_url"]
+        compare = data['compare']
         bhash = data['before'] if 'before' in data else ''
         ahash = data['after'] if 'after' in data else ''
-        compare = data['compare']
-        message :str= data["commits"][0]["message"]
+        if bhash !='':
+            bhash = bhash[0:7]
+        if ahash !='':
+            ahash = ahash[0:7]
+        commit_num = len(data["commits"]) # commit数量
+        # 为多个commit显示message
+        message=(data['commits'][0]['message'])
+        i=1
+        while i < commit_num:
+            if i==1: message=+"\n"
+            message+=data["commits"][i]["message"]
+            if i < commit_num-1: message+="\n"
+            i+=1
 
         # 如果在setting里面，代表已经ping过了
         if rid in res_setting:
             c = Card(color=ui.default_color)
             c.append(Module.Header(f'New {type} Event'))
             usr_text = f"> [{sender_name}]({sender_url}) \n"
+            if type == "push":
+                usr_text = f"> [{sender_name}]({sender_url}) push {commit_num} commit\n"
             usr_text+= f"> [{repo_name}]({repo_url})"
             c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
                                     Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
             c.append(Module.Divider())
             if bhash != '':
-                c.append(Module.Context(Element.Text(f'> Hash:\n[{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
-            print(f"{repo_name} = {message}")
+                c.append(Module.Context(Element.Text(f'> Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
+            print(f"[repo:{repo_name} = {message} ]")
             while message.find('\n\n') >0:
                 message = message.replace('\n\n','\n')
             c.append(Module.Context(Element.Text(f'> Message:\n**{message}**',Types.Text.KMD)))
