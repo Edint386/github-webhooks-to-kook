@@ -1,5 +1,6 @@
 import asyncio
 import hmac
+import traceback
 import aiofiles
 import aiohttp
 import time
@@ -76,68 +77,72 @@ async def save_Data():
 # 基本请求，用于验证是否在线且能正常访问
 @routes.get('/')
 async def link_test(request:web.get):
-    print(f"[request] / {GetTime()}")
+    print(f"[request] / [{GetTime()}]")
     return web.Response(body="Hello", status=200)
 
 @routes.post('/hook')
 async def github_webhook(request: web.Request):
-    print(f"[request] /hook {GetTime()}")
-    type = request.headers['X-GitHub-Event']
-    did = request.headers['X-GitHub-Delivery']
-    if 'X-HUB-SIGNATURE' in request.headers:
-        secret_state = True
-        sign = request.headers['X-HUB-SIGNATURE']
-    else:
-        secret_state = False
-        sign = ''
-    # 获取post的body
-    body = await request.content.read()
-    data = json.loads(body.decode('UTF8'))
-    rid = str(data["repository"]["id"])
-    repo_name = data["repository"]["full_name"] # 完整的仓库名字
-    global ping_temp
-    ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
-    if type == 'ping':
-        print(f"[Ping] from {repo_name}, rid:{rid}")
-        return web.Response(body="Pong!", status=200)
+    print(f"[request] /hook [{GetTime()}]")
+    try: 
+        type = request.headers['X-GitHub-Event']
+        did = request.headers['X-GitHub-Delivery']
+        if 'X-HUB-SIGNATURE' in request.headers:
+            secret_state = True
+            sign = request.headers['X-HUB-SIGNATURE']
+        else:
+            secret_state = False
+            sign = ''
+        # 获取post的body
+        body = await request.content.read()
+        data = json.loads(body.decode('UTF8'))
+        rid = str(data["repository"]["id"])
+        repo_name = data["repository"]["full_name"] # 完整的仓库名字
+        global ping_temp
+        ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
+        if type == 'ping':
+            print(f"[Ping] from {repo_name}, rid:{rid}")
+            return web.Response(body="Pong!", status=200)
 
-    repo_url = data["repository"]['url']
-    sender_name = data["sender"]["login"]
-    sender_url = data["sender"]["url"]
-    sender_avatar = data["sender"]["avatar_url"]
-    bhash = data['before'] if 'before' in data else ''
-    ahash = data['after'] if 'after' in data else ''
-    compare = data['compare']
-    message :str= data["commits"][0]["message"]
+        repo_url = data["repository"]['url']
+        sender_name = data["sender"]["login"]
+        sender_url = data["sender"]["url"]
+        sender_avatar = data["sender"]["avatar_url"]
+        bhash = data['before'] if 'before' in data else ''
+        ahash = data['after'] if 'after' in data else ''
+        compare = data['compare']
+        message :str= data["commits"][0]["message"]
 
-    # 如果在setting里面，代表已经ping过了
-    if rid in res_setting:
-        c = Card(color=ui.default_color)
-        c.append(Module.Header(f'New {type} Event'))
-        usr_text = f"> [{sender_name}]({sender_url}) \n"
-        usr_text+= f"> [{repo_name}]({repo_url})"
-        c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
-                                Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
-        c.append(Module.Divider())
-        if bhash != '':
-            c.append(Module.Context(Element.Text(f'> Hash:\n[{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
-        print(f"{repo_name} = {message}")
-        while message.find('\n\n') >0:
-            message = message.replace('\n\n','\n')
-        c.append(Module.Context(Element.Text(f'> Message:\n**{message}**',Types.Text.KMD)))
-        # 遍历文件
-        for cid, v in res_setting[rid].items():
-            ch = await bot.client.fetch_public_channel(cid)
-            if 'secret' in repo_secret: 
-                secret = repo_secret['secret']
-                digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
-                assert digest == "sha1", "Digest must be sha1"  # use a whitelist
-                h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
-                await ch.send(
-                    ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
-                assert h.hexdigest() == signature, "Bad signature"
-            await ch.send(CardMessage(c))
-    return web.Response(body="Hi", status=200)
+        # 如果在setting里面，代表已经ping过了
+        if rid in res_setting:
+            c = Card(color=ui.default_color)
+            c.append(Module.Header(f'New {type} Event'))
+            usr_text = f"> [{sender_name}]({sender_url}) \n"
+            usr_text+= f"> [{repo_name}]({repo_url})"
+            c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
+                                    Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
+            c.append(Module.Divider())
+            if bhash != '':
+                c.append(Module.Context(Element.Text(f'> Hash:\n[{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
+            print(f"{repo_name} = {message}")
+            while message.find('\n\n') >0:
+                message = message.replace('\n\n','\n')
+            c.append(Module.Context(Element.Text(f'> Message:\n**{message}**',Types.Text.KMD)))
+            # 遍历文件
+            for cid, v in res_setting[rid].items():
+                ch = await bot.client.fetch_public_channel(cid)
+                if 'secret' in repo_secret: 
+                    secret = repo_secret['secret']
+                    digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
+                    assert digest == "sha1", "Digest must be sha1"  # use a whitelist
+                    h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
+                    await ch.send(
+                        ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
+                    assert h.hexdigest() == signature, "Bad signature"
+                await ch.send(CardMessage(c))
+        return web.Response(body="Hi", status=200)
+    except:
+        err_str = f"ERR! [{GetTime()}] /hook\n{traceback.format_exc()}"
+        print(err_str)
 
     # assert request.content_length < 1000000, "Request content too fat" # 1M
     # print("New commit by: {}".format((json.loads(body))['commits'][0]['author']['name']))
@@ -163,69 +168,77 @@ def card_help():
 
 @bot.command(regex=r'(.+)', rules=[Rule.is_bot_mentioned(bot)])
 async def bot_help_when_mentioned(msg: Message, d: str):
-    await logging(msg)
-    await msg.ctx.channel.send(card_help())
-
+    try:
+        await logging(msg)
+        await msg.ctx.channel.send(card_help())
+    except:
+        print(f"ERR! [{GetTime()}] help_mentioned\n{traceback.format_exc()}")
 
 @bot.command(regex=r'^(?:G|g|)(?:。|.|!|/|！|)(?:help|帮助)')
 async def bot_help_message(msg: Message):
-    await logging(msg)
-    await msg.ctx.channel.send(card_help())
+    try:
+        await logging(msg)
+        await msg.ctx.channel.send(card_help())
+    except:
+        print(f"ERR! [{GetTime()}] help_message\n{traceback.format_exc()}")
 
 
 @bot.command(regex=r'(?:G|g|git)(?:。|.|!|/|！|)(?:bind|绑定)(.+)')
 async def bot_bind_repo(msg: Message, d: str):
-    if await logging(msg,True):
-        return
-    
-    l = d.split(' ')
-    x = 0
-    for i in copy.deepcopy(l):
-        if i == '':
-            l.pop(x)
-        x+= 1
-    if len(l) == 1:
-        d = l[0]
-        dd = ''
-    elif len(l) == 2:
-        d = l[0]
-        dd = l[1]
-    else:
-        await msg.ctx.channel.send(ui.card_uni(icon.error, '参数错误'))
-        return
-    if d not in ping_temp:
-        await msg.ctx.channel.send(ui.card_uni(icon.error, 'github未向服务器推送webhook 请检查webhook设置'))
-        raise 'webhook error'
-    rid = ping_temp[d]['rid']
-    secret_state = ping_temp[d]['secret']
-    sign = ping_temp[d]['sign']
-    body = ping_temp[d]['body']
-    global res_setting
-    if dd != '':
-        await msg.delete()
-        if secret_state ==False:
-            await msg.ctx.channel.send(ui.card_uni(icon.error, '您输入了secret但并未设置'))
+    try:
+        if await logging(msg,True):
             return
-        digest, signature = sign.split("=", 1)
-        assert digest == "sha1", "Digest must be sha1"  # use a whitelist
-        h = hmac.HMAC(bytes(dd, "UTF8"), msg=json.dumps(body,ensure_ascii=True), digestmod=digest)
-        if h.hexdigest() != signature:
-            await msg.ctx.channel.send(ui.card_uni(icon.error, 'secret错误'))
-            raise "Bad signature"
-        global repo_secret
-        repo_secret[rid] = dd
-    else:
-        if secret_state ==True:
-            await msg.ctx.channel.send(ui.card_uni(icon.error, '缺少secret'))
+        
+        l = d.split(' ')
+        x = 0
+        for i in copy.deepcopy(l):
+            if i == '':
+                l.pop(x)
+            x+= 1
+        if len(l) == 1:
+            d = l[0]
+            dd = ''
+        elif len(l) == 2:
+            d = l[0]
+            dd = l[1]
+        else:
+            await msg.ctx.channel.send(ui.card_uni(icon.error, '参数错误'))
             return
-    res_setting[rid] = {msg.ctx.channel.id: {'gid': msg.ctx.guild.id, 'aid': msg.author_id}}
-    print(res_setting)
-    global guild_setting
-    if msg.ctx.guild.id not in guild_setting:
-        guild_setting[msg.ctx.guild.id] = {'repo':{},'display': 0}
+        if d not in ping_temp:
+            await msg.ctx.channel.send(ui.card_uni(icon.error, 'github未向服务器推送webhook 请检查webhook设置'))
+            raise 'webhook error'
+        rid = ping_temp[d]['rid']
+        secret_state = ping_temp[d]['secret']
+        sign = ping_temp[d]['sign']
+        body = ping_temp[d]['body']
+        global res_setting
+        if dd != '':
+            await msg.delete()
+            if secret_state ==False:
+                await msg.ctx.channel.send(ui.card_uni(icon.error, '您输入了secret但并未设置'))
+                return
+            digest, signature = sign.split("=", 1)
+            assert digest == "sha1", "Digest must be sha1"  # use a whitelist
+            h = hmac.HMAC(bytes(dd, "UTF8"), msg=json.dumps(body,ensure_ascii=True), digestmod=digest)
+            if h.hexdigest() != signature:
+                await msg.ctx.channel.send(ui.card_uni(icon.error, 'secret错误'))
+                raise "Bad signature"
+            global repo_secret
+            repo_secret[rid] = dd
+        else:
+            if secret_state ==True:
+                await msg.ctx.channel.send(ui.card_uni(icon.error, '缺少secret'))
+                return
+        res_setting[rid] = {msg.ctx.channel.id: {'gid': msg.ctx.guild.id, 'aid': msg.author_id}}
+        print(res_setting)
+        global guild_setting
+        if msg.ctx.guild.id not in guild_setting:
+            guild_setting[msg.ctx.guild.id] = {'repo':{},'display': 0}
 
-    guild_setting[msg.ctx.guild.id]['repo'][rid] = msg.ctx.channel.id
-    await msg.ctx.channel.send(ui.card_uni(icon.finished,'绑定成功！'))
+        guild_setting[msg.ctx.guild.id]['repo'][rid] = msg.ctx.channel.id
+        await msg.ctx.channel.send(ui.card_uni(icon.finished,'绑定成功！'))
+    except:
+        print(f"ERR! [{GetTime()}] bind\n{traceback.format_exc()}")
 
 
 # @bot.on_event(EventTypes.MESSAGE_BTN_CLICK)
