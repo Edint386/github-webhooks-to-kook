@@ -74,6 +74,70 @@ async def save_Data():
     await write_file(path_did,ping_temp)
     await write_file(path_secret,repo_secret)
 
+async def type_push(data:dict,request: web.Request,body,rid):
+    repo_name = data["repository"]["full_name"] # 完整的仓库名字
+    repo_url = data["repository"]['url']
+    sender_name = data["sender"]["login"]
+    sender_url = data["sender"]["url"]
+    sender_avatar = data["sender"]["avatar_url"]
+    compare = data['compare']
+    bhash = data['before'] if 'before' in data else ''
+    ahash = data['after'] if 'after' in data else ''
+    if bhash !='':
+        bhash = bhash[0:7]
+    if ahash !='':
+        ahash = ahash[0:7]
+    commit_num = len(data["commits"]) # commit数量
+    # 为多个commit显示message
+    message=(data['commits'][0]['message'])
+    i=1
+    while i < commit_num:
+        if i==1: message=+"\n"
+        message+=data["commits"][i]["message"]
+        if i < commit_num-1: message+="\n"
+        i+=1
+
+    # 如果在setting里面，代表已经ping过了
+    if rid in res_setting:
+        c = Card(color=ui.default_color)
+        c.append(Module.Header(f'New Push Event'))
+        usr_text = f" [{sender_name}]({sender_url}) push {commit_num} commit\n"
+        usr_text+= f" [{repo_name}]({repo_url})"
+        c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
+                                Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
+        c.append(Module.Divider())
+        if bhash != '':
+            c.append(Module.Context(Element.Text(f'> Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
+        print(f"[repo:{repo_name} = {message} ]")
+        while message.find('\n\n') >0:
+            message = message.replace('\n\n','\n')
+        c.append(Module.Context(Element.Text(f'> Message:\n**{message}**',Types.Text.KMD)))
+        return c
+
+async def type_release(data:dict,request: web.Request,body,rid):
+    repo_name = data["repository"]["full_name"] # 完整的仓库名字
+    repo_url = data["repository"]['url']
+    sender_name = data["sender"]["login"]
+    sender_url = data["sender"]["url"]
+    sender_avatar = data["sender"]["avatar_url"]
+    tag_name = data["release"]["tag_name"]
+    release_name = data["release"]["name"]
+    release_body = data["release"]["body"]
+    release_url = data["release"]["html_url"]
+    
+    # 如果在setting里面，代表已经ping过了
+    if rid in res_setting:
+        c = Card(color=ui.default_color)
+        c.append(Module.Header(f'New Release Event'))
+        usr_text = f" [{sender_name}]({sender_url}) release {release_name}\n"
+        usr_text+= f" [{repo_name}]({repo_url})"
+        c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
+                                Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
+        c.append(Module.Divider())
+        c.append(Module.Context(Element.Text(f'> Tag: [{tag_name}]({release_url})',Types.Text.KMD)))
+        c.append(Module.Context(Element.Text(f'> Info:\n**{release_body}**',Types.Text.KMD)))
+        return c
+
 # 基本请求，用于验证是否在线且能正常访问
 @routes.get('/')
 async def link_test(request:web.get):
@@ -84,7 +148,7 @@ async def link_test(request:web.get):
 async def github_webhook(request: web.Request):
     print(f"[request] /hook [{GetTime()}]")
     try: 
-        type = request.headers['X-GitHub-Event']
+        Etype = request.headers['X-GitHub-Event']
         did = request.headers['X-GitHub-Delivery']
         if 'X-HUB-SIGNATURE' in request.headers:
             secret_state = True
@@ -97,64 +161,40 @@ async def github_webhook(request: web.Request):
         data = json.loads(body.decode('UTF8'))
         rid = str(data["repository"]["id"])
         repo_name = data["repository"]["full_name"] # 完整的仓库名字
+        repo_url = data["repository"]['url']
         global ping_temp
         ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
-        if type == 'ping':
-            print(f"[Ping] from {repo_name}, rid:{rid}")
+        print(f"[{Etype}] from {repo_name}, rid:{rid}")
+        c = Card()
+        if Etype == 'ping':
             return web.Response(body="Pong!", status=200)
-
-        repo_url = data["repository"]['url']
-        sender_name = data["sender"]["login"]
-        sender_url = data["sender"]["url"]
-        sender_avatar = data["sender"]["avatar_url"]
-        compare = data['compare']
-        bhash = data['before'] if 'before' in data else ''
-        ahash = data['after'] if 'after' in data else ''
-        if bhash !='':
-            bhash = bhash[0:7]
-        if ahash !='':
-            ahash = ahash[0:7]
-        commit_num = len(data["commits"]) # commit数量
-        # 为多个commit显示message
-        message=(data['commits'][0]['message'])
-        i=1
-        while i < commit_num:
-            if i==1: message=+"\n"
-            message+=data["commits"][i]["message"]
-            if i < commit_num-1: message+="\n"
-            i+=1
-
-        # 如果在setting里面，代表已经ping过了
-        if rid in res_setting:
-            c = Card(color=ui.default_color)
-            c.append(Module.Header(f'New {type} Event'))
-            usr_text = f"> [{sender_name}]({sender_url}) \n"
-            if type == "push":
-                usr_text = f"> [{sender_name}]({sender_url}) push {commit_num} commit\n"
-            usr_text+= f"> [{repo_name}]({repo_url})"
-            c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
-                                    Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
-            c.append(Module.Divider())
-            if bhash != '':
-                c.append(Module.Context(Element.Text(f'> Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
-            print(f"[repo:{repo_name} = {message} ]")
-            while message.find('\n\n') >0:
-                message = message.replace('\n\n','\n')
-            c.append(Module.Context(Element.Text(f'> Message:\n**{message}**',Types.Text.KMD)))
-            # 遍历文件
-            for cid, v in res_setting[rid].items():
-                ch = await bot.client.fetch_public_channel(cid)
-                if 'secret' in repo_secret: 
-                    secret = repo_secret['secret']
-                    digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
-                    assert digest == "sha1", "Digest must be sha1"  # use a whitelist
-                    h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
-                    await ch.send(
-                        ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
-                    assert h.hexdigest() == signature, "Bad signature"
-                    print( f"[secret err] repo:[{repo_name}]({repo_url})")
-                await ch.send(CardMessage(c))
-        return web.Response(body="Hi", status=200)
+        elif Etype == 'push':
+            if "refs/tags" not in data["ref"]:
+                c = await type_push(data,request,body,rid)
+            else:
+                return web.Response(body="only handle user push", status=200)
+        elif Etype == 'release':
+            if data["action"] == "published":
+                c = await type_release(data,request,body,rid)
+            else:
+                return web.Response(body="wait for published", status=200)
+            
+        # 遍历文件
+        for cid, v in res_setting[rid].items():
+            ch = await bot.client.fetch_public_channel(cid)
+            if 'secret' in repo_secret: 
+                secret = repo_secret['secret']
+                digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
+                assert digest == "sha1", "Digest must be sha1"  # use a whitelist
+                h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
+                await ch.send(
+                    ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
+                assert h.hexdigest() == signature, "Bad signature"
+                print( f"[secret err] repo:[{repo_name}]({repo_url})")
+            await ch.send(CardMessage(c))
+            
+        return web.Response(body="get you!", status=200)
+        
     except:
         err_str = f"ERR! [{GetTime()}] /hook\n{traceback.format_exc()}"
         print(err_str)
@@ -175,8 +215,7 @@ def card_help():
     c.append(Module.Header("第五步 输入绑定指令"))
     add = '\n若有密钥，请添加在id后方\n例：`g.bind xxx-xxx-xxx-xxx 密钥`'
     c.append(Module.Section(Element.Text(
-        f"前往 **Recent Deliveries** 复制ping推送的id 返回开黑啦输入以下命令\n`g.bind {id}`\n例：`g.bind 5eb81820-4c93-11ed-96e9-87017811cb55`{add}",Types.Text.KMD)))
-
+        f"前往 **Recent Deliveries** 复制ping推送的id\n在kook输入命令 `g.bind [id]`\n例：`g.bind 5eb81820-4c93-11ed-96e9-87017811cb55`{add}",Types.Text.KMD)))
     c.append(Module.Container(Element.Image('https://img.kookapp.cn/assets/2022-10/PgZvhk66HF1dy0pm.png')))
     return CardMessage(c)
 
