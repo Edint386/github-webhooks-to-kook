@@ -90,7 +90,7 @@ async def type_push(data:dict,request: web.Request,body,rid):
     if len(ahash) >8:
         ahash = ahash[0:7]
     if head_cmt_time!='':
-        head_cmt_time = head_cmt_time[0:19]
+        head_cmt_time = "at "+head_cmt_time[0:19]
     commit_num = len(data["commits"]) # commit数量
     # 为多个commit显示message
     message=(data['commits'][0]['message'])
@@ -109,7 +109,7 @@ async def type_push(data:dict,request: web.Request,body,rid):
         usr_text+= f"> [{repo_name}]({repo_url})"
         c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
                                 Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
-        c.append(Module.Context(f"{commit_num} commit at {head_cmt_time}"))
+        c.append(Module.Context(f"{commit_num} commit {head_cmt_time}"))
         c.append(Module.Divider())
         if bhash != '':
             c.append(Module.Context(Element.Text(f'Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
