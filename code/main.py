@@ -95,7 +95,9 @@ async def github_webhook(request: web.Request):
     if rid in res_setting:
         c = Card(color=ui.default_color)
         c.append(Module.Header(f'New {type} Event'))
-        c.append(Module.Section(Element.Text(f'> user: [{sender_name}]({sender_url}) \nrepo: [{repo_name}]({repo_url})',Types.Text.KMD),
+        usr_text = f"> [{sender_name}]({sender_url}) \n"
+        usr_text+= f"> [{repo_name}]({repo_url})"
+        c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
                                 Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
         c.append(Module.Divider())
         if bhash != '':
@@ -113,7 +115,7 @@ async def github_webhook(request: web.Request):
                 assert digest == "sha1", "Digest must be sha1"  # use a whitelist
                 h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
                 await ch.send(
-                    ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})', is_highlight=False))
+                    ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
                 assert h.hexdigest() == signature, "Bad signature"
             await ch.send(CardMessage(c))
     return web.Response(body="Hi", status=200)
@@ -141,17 +143,17 @@ def card_help():
 
 
 @bot.command(regex=r'(.+)', rules=[Rule.is_bot_mentioned(bot)])
-async def bot1_help_when_mentioned(msg: Message, d: str):
+async def bot_help_when_mentioned(msg: Message, d: str):
     await msg.ctx.channel.send(card_help())
 
 
 @bot.command(regex=r'^(?:G|g|)(?:。|.|!|/|！|)(?:help|帮助)')
-async def hhelp(msg: Message):
+async def bot_help_message(msg: Message):
     await msg.ctx.channel.send(card_help())
 
 
 @bot.command(regex=r'(?:G|g|git)(?:。|.|!|/|！|)(?:bind|绑定)(.+)')
-async def bot1_add_uuid(msg: Message, d: str):
+async def bot_bind_repo(msg: Message, d: str):
     print(d)
     l = d.split(' ')
     x = 0
@@ -203,16 +205,9 @@ async def bot1_add_uuid(msg: Message, d: str):
     await msg.ctx.channel.send(ui.card_uni(icon.finished,'绑定成功！'))
 
 
-
-
-# @bot.command
-
-
 # @bot.on_event(EventTypes.MESSAGE_BTN_CLICK)
 # async def btn(b:Bot,e:Event):
 #     aid = e.body['user_info']['id']
-#
-#
 #     if 'guild_id' not in e.body:
 #         channel_type = 'person'
 #         channel = await b.client.fetch_user(aid)
@@ -228,9 +223,6 @@ async def bot1_add_uuid(msg: Message, d: str):
 #         aaid = val['aid']
 #         if aaid != aid:
 #             return
-
-
-
 
 
 if __name__ == '__main__':
