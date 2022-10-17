@@ -1,4 +1,5 @@
 import asyncio
+from contextvars import Context
 import hmac
 import traceback
 import aiofiles
@@ -81,12 +82,15 @@ async def type_push(data:dict,request: web.Request,body,rid):
     sender_url = data["sender"]["url"]
     sender_avatar = data["sender"]["avatar_url"]
     compare = data['compare']
+    head_cmt_time = data["head_commit"]["timestamp"] if "head_commit" in data else ''
     bhash = data['before'] if 'before' in data else ''
     ahash = data['after'] if 'after' in data else ''
-    if bhash !='':
+    if len(bhash) >8:
         bhash = bhash[0:7]
-    if ahash !='':
+    if len(ahash) >8:
         ahash = ahash[0:7]
+    if head_cmt_time!='':
+        head_cmt_time = head_cmt_time[0:19]
     commit_num = len(data["commits"]) # commit数量
     # 为多个commit显示message
     message=(data['commits'][0]['message'])
@@ -101,17 +105,18 @@ async def type_push(data:dict,request: web.Request,body,rid):
     if rid in res_setting:
         c = Card(color=ui.default_color)
         c.append(Module.Header(f'New Push Event'))
-        usr_text = f"> [{sender_name}]({sender_url}) push {commit_num} commit\n"
+        usr_text = f"> [{sender_name}]({sender_url})\n"
         usr_text+= f"> [{repo_name}]({repo_url})"
         c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
                                 Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
+        c.append(Module.Context(f"{commit_num} commit at {head_cmt_time}"))
         c.append(Module.Divider())
         if bhash != '':
-            c.append(Module.Context(Element.Text(f'> Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
+            c.append(Module.Context(Element.Text(f'Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
         print(f"[repo:{repo_name} = {message} ]")
         while message.find('\n\n') >0:
             message = message.replace('\n\n','\n')
-        c.append(Module.Context(Element.Text(f'> Message:\n**{message}**',Types.Text.KMD)))
+        c.append(Module.Context(Element.Text(f'Message:\n**{message}**',Types.Text.KMD)))
         return c
 
 async def type_release(data:dict,request: web.Request,body,rid):
