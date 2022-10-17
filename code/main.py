@@ -2,13 +2,14 @@ import asyncio
 import hmac
 import aiofiles
 import aiohttp
+import time
 import copy
 import io
 import json
 from PIL import Image, ImageDraw, ImageFont, ImageStat, ImageFilter, ImageEnhance
 from aiohttp import web, FormData
 from aiohttp.web_request import Request
-from khl import Bot,Message
+from khl import Bot,Message,PrivateMessage
 from khl.card import Element,Card,CardMessage,Module,Types
 from khl.command import Rule
 
@@ -48,6 +49,22 @@ async def tgrds():
     global repo_secret
     repo_secret = await read_file(path_secret)
 
+# 获取当前时间
+def GetTime():  
+    return time.strftime("%y-%m-%d %H:%M:%S", time.localtime())
+# 在控制台打印msg内容，用作日志
+async def logging(msg: Message,PrivateBan=False):
+    now_time = GetTime()
+    if isinstance(msg, PrivateMessage):
+        log_str = f"[{now_time}] PrivateMessage - Au:{msg.author_id}_{msg.author.username}#{msg.author.identify_num} = {msg.content}"
+        if PrivateBan:
+            log_str+= " ban"
+            await msg.reply(f"本命令需要在公频使用！")
+        print(log_str)
+        return True
+    else:
+        print(f"[{now_time}] G:{msg.ctx.guild.id} - C:{msg.ctx.channel.id} - Au:{msg.author_id}_{msg.author.username}#{msg.author.identify_num} = {msg.content}")
+        return False
 
 @bot.task.add_interval(seconds=60)
 async def save_Data():
@@ -144,17 +161,21 @@ def card_help():
 
 @bot.command(regex=r'(.+)', rules=[Rule.is_bot_mentioned(bot)])
 async def bot_help_when_mentioned(msg: Message, d: str):
+    await logging(msg)
     await msg.ctx.channel.send(card_help())
 
 
 @bot.command(regex=r'^(?:G|g|)(?:。|.|!|/|！|)(?:help|帮助)')
 async def bot_help_message(msg: Message):
+    await logging(msg)
     await msg.ctx.channel.send(card_help())
 
 
 @bot.command(regex=r'(?:G|g|git)(?:。|.|!|/|！|)(?:bind|绑定)(.+)')
 async def bot_bind_repo(msg: Message, d: str):
-    print(d)
+    if await logging(msg,True):
+        return
+    
     l = d.split(' ')
     x = 0
     for i in copy.deepcopy(l):
