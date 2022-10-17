@@ -138,6 +138,7 @@ async def github_webhook(request: web.Request):
                     await ch.send(
                         ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
                     assert h.hexdigest() == signature, "Bad signature"
+                    print( f"[secret err] repo:[{repo_name}]({repo_url})")
                 await ch.send(CardMessage(c))
         return web.Response(body="Hi", status=200)
     except:
