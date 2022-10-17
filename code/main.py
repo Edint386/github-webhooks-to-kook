@@ -76,12 +76,12 @@ async def save_Data():
 # 基本请求，用于验证是否在线且能正常访问
 @routes.get('/')
 async def link_test(request:web.get):
-    print("[request] /")
+    print(f"[request] / {GetTime()}")
     return web.Response(body="Hello", status=200)
 
 @routes.post('/hook')
 async def github_webhook(request: web.Request):
-    print("[request] /hook")
+    print(f"[request] /hook {GetTime()}")
     type = request.headers['X-GitHub-Event']
     did = request.headers['X-GitHub-Delivery']
     if 'X-HUB-SIGNATURE' in request.headers:
@@ -90,15 +90,17 @@ async def github_webhook(request: web.Request):
     else:
         secret_state = False
         sign = ''
+    # 获取post的body
     body = await request.content.read()
     data = json.loads(body.decode('UTF8'))
     rid = str(data["repository"]["id"])
+    repo_name = data["repository"]["full_name"] # 完整的仓库名字
+    global ping_temp
     ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
     if type == 'ping':
-        print(f"[Ping]")
+        print(f"[Ping] from {repo_name}, rid:{rid}")
         return web.Response(body="Pong!", status=200)
 
-    repo_name = data["repository"]["full_name"]
     repo_url = data["repository"]['url']
     sender_name = data["sender"]["login"]
     sender_url = data["sender"]["url"]
@@ -119,11 +121,11 @@ async def github_webhook(request: web.Request):
         c.append(Module.Divider())
         if bhash != '':
             c.append(Module.Context(Element.Text(f'> Hash:\n[{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
-        print(message)
+        print(f"{repo_name} = {message}")
         while message.find('\n\n') >0:
             message = message.replace('\n\n','\n')
         c.append(Module.Context(Element.Text(f'> Message:\n**{message}**',Types.Text.KMD)))
-
+        # 遍历文件
         for cid, v in res_setting[rid].items():
             ch = await bot.client.fetch_public_channel(cid)
             if 'secret' in repo_secret: 
