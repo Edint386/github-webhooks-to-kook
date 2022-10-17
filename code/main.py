@@ -101,8 +101,8 @@ async def type_push(data:dict,request: web.Request,body,rid):
     if rid in res_setting:
         c = Card(color=ui.default_color)
         c.append(Module.Header(f'New Push Event'))
-        usr_text = f" [{sender_name}]({sender_url}) push {commit_num} commit\n"
-        usr_text+= f" [{repo_name}]({repo_url})"
+        usr_text = f"> [{sender_name}]({sender_url}) push {commit_num} commit\n"
+        usr_text+= f"> [{repo_name}]({repo_url})"
         c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
                                 Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
         c.append(Module.Divider())
@@ -129,8 +129,8 @@ async def type_release(data:dict,request: web.Request,body,rid):
     if rid in res_setting:
         c = Card(color=ui.default_color)
         c.append(Module.Header(f'New Release Event'))
-        usr_text = f" [{sender_name}]({sender_url}) release {release_name}\n"
-        usr_text+= f" [{repo_name}]({repo_url})"
+        usr_text = f"> [{sender_name}]({sender_url}) release {release_name}\n"
+        usr_text+= f"> [{repo_name}]({repo_url})"
         c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
                                 Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
         c.append(Module.Divider())
