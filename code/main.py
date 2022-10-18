@@ -327,9 +327,10 @@ def card_help():
     c.append(Module.Header("第四步 点击页面底部Update Webhook"))
     c.append(Module.Container(Element.Image('https://img.kookapp.cn/assets/2022-10/tj7t62gBsn1dp0pk.png')))
     c.append(Module.Header("第五步 输入绑定指令"))
-    add = '\n若有密钥，请添加在id后方\n例：`g.bind xxx-xxx-xxx-xxx 密钥`'
-    c.append(Module.Section(Element.Text(
-        f"前往 **Recent Deliveries** 复制ping推送的id\n在kook输入命令 `g.bind [id]`\n例：`g.bind 5eb81820-4c93-11ed-96e9-87017811cb55`{add}",Types.Text.KMD)))
+    #add = '\n若有密钥，请添加在id后方\n例：`g.bind xxx-xxx-xxx-xxx 密钥`'
+    text = f"[Github] 前往 **Recent Deliveries** 复制ping推送的id\n在kook输入命令 `g.bind [id]`\n例：`g.bind 5eb81820-4c93-11ed-96e9-87017811cb55`\n"
+    text+= f"[Gitee]  复制浏览器url中的用户/仓库名\n在kook输入命令 `g.bind [repo]`\n例：仓库url为`https://gitee.com/oschina/git-osc.git`\n绑定命令为`g.bind oschina/git-osc`"
+    c.append(Module.Section(Element.Text(text,Types.Text.KMD)))
     c.append(Module.Container(Element.Image('https://img.kookapp.cn/assets/2022-10/PgZvhk66HF1dy0pm.png')))
     return CardMessage(c)
 
