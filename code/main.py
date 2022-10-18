@@ -123,23 +123,21 @@ async def type_push(data:dict,request: web.Request,body,rid):
         if i < commit_num-1: message+="\n"
         i+=1
 
-    # 如果在setting里面，代表已经ping过了
-    if rid in gh_res_setting:
-        c = Card(color=ui.default_color)
-        c.append(Module.Header(f'New Push Event'))
-        usr_text = f"> [{sender_name}]({sender_url})\n"
-        usr_text+= f"> [{repo_name}]({repo_url})"
-        c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
-                                Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
-        c.append(Module.Context(f"{commit_num} commit {head_cmt_time}"))
-        c.append(Module.Divider())
-        if bhash != '':
-            c.append(Module.Context(Element.Text(f'Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
-        print(f"[repo:{repo_name} = {message} ]")
-        while message.find('\n\n') >0:
-            message = message.replace('\n\n','\n')
-        c.append(Module.Context(Element.Text(f'Message:\n**{message}**',Types.Text.KMD)))
-        return c
+    c = Card(color=ui.default_color)
+    c.append(Module.Header(f'New Push Event'))
+    usr_text = f"> [{sender_name}]({sender_url})\n"
+    usr_text+= f"> [{repo_name}]({repo_url})"
+    c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
+                            Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
+    c.append(Module.Context(f"{commit_num} commit {head_cmt_time}"))
+    c.append(Module.Divider())
+    if bhash != '':
+        c.append(Module.Context(Element.Text(f'Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
+    while message.find('\n\n') >0:
+        message = message.replace('\n\n','\n')
+    print(f"[github repo:{repo_name} = {message} ]")
+    c.append(Module.Context(Element.Text(f'Message:\n**{message}**',Types.Text.KMD)))
+    return c
 
 async def type_release(data:dict,request: web.Request,body,rid):
     repo_name = data["repository"]["full_name"] # 完整的仓库名字
@@ -152,18 +150,16 @@ async def type_release(data:dict,request: web.Request,body,rid):
     release_body = data["release"]["body"]
     release_url = data["release"]["html_url"]
     
-    # 如果在setting里面，代表已经ping过了
-    if rid in gh_res_setting:
-        c = Card(color=ui.default_color)
-        c.append(Module.Header(f'New Release Event'))
-        usr_text = f"> [{sender_name}]({sender_url}) release {release_name}\n"
-        usr_text+= f"> [{repo_name}]({repo_url})"
-        c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
-                                Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
-        c.append(Module.Divider())
-        c.append(Module.Context(Element.Text(f'> Tag: [{tag_name}]({release_url})',Types.Text.KMD)))
-        c.append(Module.Context(Element.Text(f'> Info:\n**{release_body}**',Types.Text.KMD)))
-        return c
+    c = Card(color=ui.default_color)
+    c.append(Module.Header(f'New Release Event'))
+    usr_text = f"> [{sender_name}]({sender_url}) release {release_name}\n"
+    usr_text+= f"> [{repo_name}]({repo_url})"
+    c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
+                            Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
+    c.append(Module.Divider())
+    c.append(Module.Context(Element.Text(f'> Tag: [{tag_name}]({release_url})',Types.Text.KMD)))
+    c.append(Module.Context(Element.Text(f'> Info:\n**{release_body}**',Types.Text.KMD)))
+    return c
 
 #处理github请求
 async def github_webhook(request: web.Request):
@@ -183,7 +179,7 @@ async def github_webhook(request: web.Request):
     global gh_ping_temp
     gh_ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
     print(f"[{Etype}] from {repo_name}, rid:{rid}")
-    c = Card()
+    c = None
     if Etype == 'ping':
         return web.Response(body="Pong!", status=200)
     elif Etype == 'push':
@@ -199,54 +195,81 @@ async def github_webhook(request: web.Request):
     else:
         return web.Response(body="Unsupported github event!", status=400)
         
-    # 遍历文件
-    for cid, v in gh_res_setting[rid].items():
-        ch = await bot.client.fetch_public_channel(cid)
-        # if 'secret' in repo_secret: 
-        #     secret = repo_secret['secret']
-        #     digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
-        #     assert digest == "sha1", "Digest must be sha1"  # use a whitelist
-        #     h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
-        #     await ch.send(
-        #         ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
-        #     assert h.hexdigest() == signature, "Bad signature"
-        #     print( f"[secret err] repo:[{repo_name}]({repo_url})")
-        await ch.send(CardMessage(c))
+    # 遍历文件，如果在setting里面，代表已经bind过了
+    if rid in gh_res_setting:
+        for cid, v in gh_res_setting[rid].items():
+            ch = await bot.client.fetch_public_channel(cid)
+            # if 'secret' in repo_secret: 
+            #     secret = repo_secret['secret']
+            #     digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
+            #     assert digest == "sha1", "Digest must be sha1"  # use a whitelist
+            #     h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
+            #     await ch.send(
+            #         ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
+            #     assert h.hexdigest() == signature, "Bad signature"
+            #     print( f"[secret err] repo:[{repo_name}]({repo_url})")
+            await ch.send(CardMessage(c))
         
     return web.Response(body="get you!", status=200)
 
 # gitee请求
 async def gitee_webhook(request: web.Request):
-    # Etype = request.headers['X-Gitee-Event']
-    # if Etype != "Push Hook":
-    #     return web.Response(body="Unsupported gitee event!", status=400)
-    # # 获取post的body
-    # body = await request.content.read()
-    # data = json.loads(body.decode('UTF8'))
-    # rid = str(data["repository"]["id"])
-    # repo_name = data["repository"]["full_name"] # 完整的仓库名字
-    # repo_url = data["repository"]['url']
-    # global gh_ping_temp
-    # gh_ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
-    # print(f"[{Etype}] from {repo_name}, rid:{rid}")
-    # c = Card()
-    # if Etype == 'ping':
-    #     return web.Response(body="Pong!", status=200)
-    # elif Etype == 'push':
-    #     if "refs/tags" not in data["ref"]:
-    #         c = await type_push(data,request,body,rid)
-    #     else:
-    #         return web.Response(body="only handle user push", status=200)
-    # elif Etype == 'release':
-    #     if data["action"] == "published":
-    #         c = await type_release(data,request,body,rid)
-    #     else:
-    #         return web.Response(body="wait for published", status=200)
-        
-    # # 遍历文件
-    # for cid, v in gh_res_setting[rid].items():
-    #     ch = await bot.client.fetch_public_channel(cid)
-    #     await ch.send(CardMessage(c))
+    Etype = request.headers['X-Gitee-Event']
+    if Etype != "Push Hook":
+        return web.Response(body="Unsupported gitee event!", status=400)
+    # 获取post的body
+    body = await request.content.read()
+    data = json.loads(body.decode('UTF8'))
+    rid = str(data["repository"]["id"])
+    repo_name = data["repository"]["full_name"] # 完整的仓库名字
+    repo_url = data["repository"]['url']
+    global ge_ping_temp
+    ge_ping_temp[repo_name] = {'rid': rid,'url':repo_url,'body':data}
+    print(f"[{Etype}] from {repo_name}, rid:{rid}")
+    # 设置更多遍历
+    sender_name = data["sender"]["login"]
+    sender_url = data["sender"]["url"]
+    sender_avatar = data["sender"]["avatar_url"]
+    compare = data['compare']
+    head_cmt_time = data["head_commit"]["timestamp"] if "head_commit" in data else ''
+    bhash = data['before'] if 'before' in data else ''
+    ahash = data['after'] if 'after' in data else ''
+    if len(bhash) >8:
+        bhash = bhash[0:7]
+    if len(ahash) >8:
+        ahash = ahash[0:7]
+    if head_cmt_time!='':
+        head_cmt_time = "at "+head_cmt_time[0:19]
+    commit_num = len(data["commits"]) # commit数量
+    # 为多个commit显示message
+    message=(data['commits'][0]['message'])
+    i=1
+    while i < commit_num:
+        if i==1: message+="\n"
+        message+=data["commits"][i]["message"]
+        if i < commit_num-1: message+="\n"
+        i+=1
+    
+    c = Card(color=ui.default_color)
+    c.append(Module.Header(f'New Push Event'))
+    usr_text = f"> [{sender_name}]({sender_url})\n"
+    usr_text+= f"> [{repo_name}]({repo_url})"
+    c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
+                            Element.Image(sender_avatar), mode=Types.SectionMode.LEFT))
+    c.append(Module.Context(f"{commit_num} commit {head_cmt_time}"))
+    c.append(Module.Divider())
+    if bhash != '':
+        c.append(Module.Context(Element.Text(f'Hash: [{bhash} -> {ahash}]({compare})',Types.Text.KMD)))
+    while message.find('\n\n') >0:
+        message = message.replace('\n\n','\n')
+    print(f"[gitee repo:{repo_name} = {message} ]")
+    c.append(Module.Context(Element.Text(f'Message:\n**{message}**',Types.Text.KMD)))
+    
+    # 遍历文件，如果在setting里面，代表已经bind过了
+    if rid in ge_res_setting:
+        for cid, v in ge_res_setting[rid].items():
+            ch = await bot.client.fetch_public_channel(cid)
+            await ch.send(CardMessage(c))
     
     return web.Response(body="get you!", status=200)
 
@@ -262,9 +285,9 @@ async def webhook(request: web.Request):
     try: 
         user_agent = request.headers["User-Agent"]
         if "git-oschina" in user_agent:
-            await gitee_webhook(request)
+            return await gitee_webhook(request)
         elif "GitHub" in user_agent:
-            await github_webhook(request)
+            return await github_webhook(request)
         else:
             return web.Response(body="Unsupported git platform", status=400)
     except:
