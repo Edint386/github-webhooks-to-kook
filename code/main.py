@@ -129,7 +129,7 @@ async def type_push(data:dict,request: web.Request,body,rid):
         i+=1
 
     c = Card(color=ui.default_color)
-    c.append(Module.Header(f'New Push Event'))
+    c.append(Module.Header(f'New Push Event from Github'))
     usr_text = f"> [{sender_name}]({sender_url})\n"
     usr_text+= f"> [{repo_name}]({repo_url})"
     c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
@@ -156,7 +156,7 @@ async def type_release(data:dict,request: web.Request,body,rid):
     release_url = data["release"]["html_url"]
     
     c = Card(color=ui.default_color)
-    c.append(Module.Header(f'New Release Event'))
+    c.append(Module.Header(f'New Release Event from Github'))
     usr_text = f"> [{sender_name}]({sender_url}) release {release_name}\n"
     usr_text+= f"> [{repo_name}]({repo_url})"
     c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
@@ -270,7 +270,7 @@ async def gitee_webhook(request: web.Request):
         i+=1
     
     c = Card(color=ui.default_color)
-    c.append(Module.Header(f'New Push Event'))
+    c.append(Module.Header(f'New Push Event from Gitee'))
     usr_text = f"> [{sender_name}]({sender_url})\n"
     usr_text+= f"> [{repo_name}]({repo_url})"
     c.append(Module.Section(Element.Text(usr_text,Types.Text.KMD),
