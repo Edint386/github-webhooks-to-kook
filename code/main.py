@@ -143,6 +143,59 @@ async def type_release(data:dict,request: web.Request,body,rid):
         c.append(Module.Context(Element.Text(f'> Info:\n**{release_body}**',Types.Text.KMD)))
         return c
 
+#处理github请求
+async def github_webhook(request: web.Request):
+    Etype = request.headers['X-GitHub-Event']
+    did = request.headers['X-GitHub-Delivery']
+    if 'X-HUB-SIGNATURE' in request.headers:
+        secret_state = True
+        sign = request.headers['X-HUB-SIGNATURE']
+    else:
+        secret_state = False
+        sign = ''
+    # 获取post的body
+    body = await request.content.read()
+    data = json.loads(body.decode('UTF8'))
+    rid = str(data["repository"]["id"])
+    repo_name = data["repository"]["full_name"] # 完整的仓库名字
+    repo_url = data["repository"]['url']
+    global ping_temp
+    ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
+    print(f"[{Etype}] from {repo_name}, rid:{rid}")
+    c = Card()
+    if Etype == 'ping':
+        return web.Response(body="Pong!", status=200)
+    elif Etype == 'push':
+        if "refs/tags" not in data["ref"]:
+            c = await type_push(data,request,body,rid)
+        else:
+            return web.Response(body="only handle user push", status=200)
+    elif Etype == 'release':
+        if data["action"] == "published":
+            c = await type_release(data,request,body,rid)
+        else:
+            return web.Response(body="wait for published", status=200)
+        
+    # 遍历文件
+    for cid, v in res_setting[rid].items():
+        ch = await bot.client.fetch_public_channel(cid)
+        if 'secret' in repo_secret: 
+            secret = repo_secret['secret']
+            digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
+            assert digest == "sha1", "Digest must be sha1"  # use a whitelist
+            h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
+            await ch.send(
+                ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
+            assert h.hexdigest() == signature, "Bad signature"
+            print( f"[secret err] repo:[{repo_name}]({repo_url})")
+        await ch.send(CardMessage(c))
+        
+    return web.Response(body="get you!", status=200)
+
+# gitee请求
+async def gitee_webhook(request: web.Request):
+    return
+
 # 基本请求，用于验证是否在线且能正常访问
 @routes.get('/')
 async def link_test(request:web.get):
@@ -150,59 +203,20 @@ async def link_test(request:web.get):
     return web.Response(body="Hello", status=200)
 
 @routes.post('/hook')
-async def github_webhook(request: web.Request):
+async def webhook(request: web.Request):
     print(f"[request] /hook [{GetTime()}]")
     try: 
-        Etype = request.headers['X-GitHub-Event']
-        did = request.headers['X-GitHub-Delivery']
-        if 'X-HUB-SIGNATURE' in request.headers:
-            secret_state = True
-            sign = request.headers['X-HUB-SIGNATURE']
+        user_agent = request.headers["User-Agent"]
+        if "git-oschina" in user_agent:
+            await gitee_webhook(request)
+        elif "GitHub" in user_agent:
+            await github_webhook(request)
         else:
-            secret_state = False
-            sign = ''
-        # 获取post的body
-        body = await request.content.read()
-        data = json.loads(body.decode('UTF8'))
-        rid = str(data["repository"]["id"])
-        repo_name = data["repository"]["full_name"] # 完整的仓库名字
-        repo_url = data["repository"]['url']
-        global ping_temp
-        ping_temp[did] = {'rid': rid, 'secret': secret_state, 'sign': sign,'body':data}
-        print(f"[{Etype}] from {repo_name}, rid:{rid}")
-        c = Card()
-        if Etype == 'ping':
-            return web.Response(body="Pong!", status=200)
-        elif Etype == 'push':
-            if "refs/tags" not in data["ref"]:
-                c = await type_push(data,request,body,rid)
-            else:
-                return web.Response(body="only handle user push", status=200)
-        elif Etype == 'release':
-            if data["action"] == "published":
-                c = await type_release(data,request,body,rid)
-            else:
-                return web.Response(body="wait for published", status=200)
-            
-        # 遍历文件
-        for cid, v in res_setting[rid].items():
-            ch = await bot.client.fetch_public_channel(cid)
-            if 'secret' in repo_secret: 
-                secret = repo_secret['secret']
-                digest, signature = request.headers['X-HUB-SIGNATURE'].split("=", 1)
-                assert digest == "sha1", "Digest must be sha1"  # use a whitelist
-                h = hmac.HMAC(bytes(secret, "UTF8"), msg=body, digestmod=digest)
-                await ch.send(
-                    ui.card_uni(icon.error, 'secret错误', f'repo:[{repo_name}]({repo_url})'))
-                assert h.hexdigest() == signature, "Bad signature"
-                print( f"[secret err] repo:[{repo_name}]({repo_url})")
-            await ch.send(CardMessage(c))
-            
-        return web.Response(body="get you!", status=200)
-        
+            return web.Response(body="Unsupported git platform", status=400)
     except:
         err_str = f"ERR! [{GetTime()}] /hook\n{traceback.format_exc()}"
         print(err_str)
+        return web.Response(body=err_str, status=400)
 
     # assert request.content_length < 1000000, "Request content too fat" # 1M
     # print("New commit by: {}".format((json.loads(body))['commits'][0]['author']['name']))
