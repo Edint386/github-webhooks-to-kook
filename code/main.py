@@ -41,6 +41,11 @@ async def write_file(path, value):
     async with aiofiles.open(path, 'w',encoding='utf-8') as f:
         await f.write(json.dumps(value,ensure_ascii=False,indent=2, sort_keys=True,))
 
+async def img_requestor(img_url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(img_url) as r:
+            return await r.read()
+
 path_github_repo = './log/github/repo_setting.json'
 path_github_guild = './log/github/guild_setting.json'
 path_github_ping = './log/github/ping_temp.json'
@@ -223,15 +228,29 @@ async def gitee_webhook(request: web.Request):
     rid = str(data["repository"]["id"])
     repo_name = data["repository"]["full_name"] # 完整的仓库名字
     repo_url = data["repository"]['url']
-    global ge_ping_temp
-    ge_ping_temp[repo_name] = {'rid': rid,'url':repo_url,'body':data}
-    print(f"[{Etype}] from {repo_name}, rid:{rid}")
-    # 设置更多遍历
     sender_name = data["sender"]["login"]
     sender_url = data["sender"]["url"]
     sender_avatar = data["sender"]["avatar_url"]
+    global ge_ping_temp
+    if repo_name not in ge_ping_temp:
+        ge_ping_temp[repo_name] = {'rid': rid,'url':repo_url,'avatar_url':sender_avatar,'body':data}
+    
+    print(f"[{Etype}] from {repo_name}, rid:{rid}")
+
+    # 上传用户头像到kook
+    if ("avatar_url_kook" not in ge_ping_temp[repo_name]) or (sender_avatar != ge_ping_temp[repo_name]['avatar_url']):
+        bg = Image.open(io.BytesIO(await img_requestor(sender_avatar)))
+        imgByteArr = io.BytesIO()
+        bg.save(imgByteArr, format='PNG')
+        imgByte = imgByteArr.getvalue()
+        sender_avatar = await bot.create_asset(imgByte)
+        ge_ping_temp[repo_name]["avatar_url_kook"] = sender_avatar
+        print(f"[{repo_name}] new user-avatar {sender_avatar}")
+    else:
+        sender_avatar = ge_ping_temp[repo_name]["avatar_url_kook"]
+    
     compare = data['compare']
-    head_cmt_time = data["head_commit"]["timestamp"] if "head_commit" in data else ''
+    head_cmt_time = data["repository"]["updated_at"] if "updated_at" in data["repository"] else ''
     bhash = data['before'] if 'before' in data else ''
     ahash = data['after'] if 'after' in data else ''
     if len(bhash) >8:
@@ -246,8 +265,8 @@ async def gitee_webhook(request: web.Request):
     i=1
     while i < commit_num:
         if i==1: message+="\n"
+        message+="\n"
         message+=data["commits"][i]["message"]
-        if i < commit_num-1: message+="\n"
         i+=1
     
     c = Card(color=ui.default_color)
@@ -264,13 +283,12 @@ async def gitee_webhook(request: web.Request):
         message = message.replace('\n\n','\n')
     print(f"[gitee repo:{repo_name} = {message} ]")
     c.append(Module.Context(Element.Text(f'Message:\n**{message}**',Types.Text.KMD)))
-    
     # 遍历文件，如果在setting里面，代表已经bind过了
     if rid in ge_res_setting:
         for cid, v in ge_res_setting[rid].items():
             ch = await bot.client.fetch_public_channel(cid)
             await ch.send(CardMessage(c))
-    
+
     return web.Response(body="get you!", status=200)
 
 # 基本请求，用于验证是否在线且能正常访问
@@ -291,8 +309,8 @@ async def webhook(request: web.Request):
         else:
             return web.Response(body="Unsupported git platform", status=400)
     except:
-        err_str = f"ERR! [{GetTime()}] /hook\n{traceback.format_exc()}"
-        print(err_str)
+        err_cur = str(traceback.format_exc())
+        err_str = f"ERR! [{GetTime()}] /hook\n{err_cur}"
         return web.Response(body=err_str, status=400)
 
     # assert request.content_length < 1000000, "Request content too fat" # 1M
@@ -332,13 +350,65 @@ async def bot_help_message(msg: Message):
     except:
         print(f"ERR! [{GetTime()}] help_message\n{traceback.format_exc()}")
 
+# github绑定
+async def github_bind(msg:Message,d:str,dd:str):
+    if d not in gh_ping_temp:
+        await msg.ctx.channel.send(ui.card_uni(icon.error, 'github未向服务器推送webhook 请检查webhook设置'))
+        return
+    rid = gh_ping_temp[d]['rid']
+    secret_state = gh_ping_temp[d]['secret']
+    sign = gh_ping_temp[d]['sign']
+    body = gh_ping_temp[d]['body']
+    global gh_res_setting
+    if dd != '':
+        await msg.delete()
+        if secret_state ==False:
+            await msg.ctx.channel.send(ui.card_uni(icon.error, '您输入了secret但并未设置'))
+            return
+        digest, signature = sign.split("=", 1)
+        assert digest == "sha1", "Digest must be sha1"  # use a whitelist
+        h = hmac.HMAC(bytes(dd, "UTF8"), msg=json.dumps(body,ensure_ascii=True), digestmod=digest)
+        if h.hexdigest() != signature:
+            await msg.ctx.channel.send(ui.card_uni(icon.error, 'secret错误'))
+            raise "Bad signature"
+        global repo_secret
+        repo_secret[rid] = dd
+    else:
+        if secret_state ==True:
+            await msg.ctx.channel.send(ui.card_uni(icon.error, '缺少secret'))
+            return
+    gh_res_setting[rid] = {msg.ctx.channel.id: {'gid': msg.ctx.guild.id, 'aid': msg.author_id}}
+    print(gh_res_setting)
+    global gh_guild_setting
+    if msg.ctx.guild.id not in gh_guild_setting:
+        gh_guild_setting[msg.ctx.guild.id] = {'repo':{},'display': 0}
+
+    gh_guild_setting[msg.ctx.guild.id]['repo'][rid] = msg.ctx.channel.id
+    await msg.ctx.channel.send(ui.card_uni(icon.finished,'绑定github仓库成功！'))
+
+# gitee绑定
+async def gitee_bind(msg:Message,d:str,dd:str):
+    if d not in ge_ping_temp:
+        await msg.ctx.channel.send(ui.card_uni(icon.error, 'gitee未向服务器推送webhook 请检查webhook设置'))
+        return
+    
+    rid = ge_ping_temp[d]['rid']
+    global ge_res_setting
+    ge_res_setting[rid] = {msg.ctx.channel.id: {'gid': msg.ctx.guild.id, 'aid': msg.author_id}}
+    print(ge_res_setting)
+    global ge_guild_setting
+    if msg.ctx.guild.id not in ge_guild_setting:
+        ge_guild_setting[msg.ctx.guild.id] = {'repo':{},'display': 0}
+
+    ge_guild_setting[msg.ctx.guild.id]['repo'][rid] = msg.ctx.channel.id
+    await msg.ctx.channel.send(ui.card_uni(icon.finished,'绑定gitee仓库成功！'))
 
 @bot.command(regex=r'(?:G|g|git)(?:。|.|!|/|！|)(?:bind|绑定)(.+)')
 async def bot_bind_repo(msg: Message, d: str):
     try:
         if await logging(msg,True):
             return
-        
+
         l = d.split(' ')
         x = 0
         for i in copy.deepcopy(l):
@@ -354,39 +424,14 @@ async def bot_bind_repo(msg: Message, d: str):
         else:
             await msg.ctx.channel.send(ui.card_uni(icon.error, '参数错误'))
             return
-        if d not in gh_ping_temp:
-            await msg.ctx.channel.send(ui.card_uni(icon.error, 'github未向服务器推送webhook 请检查webhook设置'))
-            raise 'webhook error'
-        rid = gh_ping_temp[d]['rid']
-        secret_state = gh_ping_temp[d]['secret']
-        sign = gh_ping_temp[d]['sign']
-        body = gh_ping_temp[d]['body']
-        global gh_res_setting
-        if dd != '':
-            await msg.delete()
-            if secret_state ==False:
-                await msg.ctx.channel.send(ui.card_uni(icon.error, '您输入了secret但并未设置'))
-                return
-            digest, signature = sign.split("=", 1)
-            assert digest == "sha1", "Digest must be sha1"  # use a whitelist
-            h = hmac.HMAC(bytes(dd, "UTF8"), msg=json.dumps(body,ensure_ascii=True), digestmod=digest)
-            if h.hexdigest() != signature:
-                await msg.ctx.channel.send(ui.card_uni(icon.error, 'secret错误'))
-                raise "Bad signature"
-            global repo_secret
-            repo_secret[rid] = dd
-        else:
-            if secret_state ==True:
-                await msg.ctx.channel.send(ui.card_uni(icon.error, '缺少secret'))
-                return
-        gh_res_setting[rid] = {msg.ctx.channel.id: {'gid': msg.ctx.guild.id, 'aid': msg.author_id}}
-        print(gh_res_setting)
-        global gh_guild_setting
-        if msg.ctx.guild.id not in gh_guild_setting:
-            gh_guild_setting[msg.ctx.guild.id] = {'repo':{},'display': 0}
 
-        gh_guild_setting[msg.ctx.guild.id]['repo'][rid] = msg.ctx.channel.id
-        await msg.ctx.channel.send(ui.card_uni(icon.finished,'绑定成功！'))
+        if "/" in d:
+            await gitee_bind(msg,d,dd)
+        elif "-" in d:
+            await github_bind(msg,d,dd)
+        else:
+            await msg.reply(f"不支持的绑定")
+        
     except:
         print(f"ERR! [{GetTime()}] bind\n{traceback.format_exc()}")
 
