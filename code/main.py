@@ -9,7 +9,6 @@ import copy
 import io
 import os
 import json
-from PIL import Image, ImageDraw, ImageFont, ImageStat, ImageFilter, ImageEnhance
 from aiohttp import web, FormData
 from aiohttp.web_request import Request
 from khl import Bot, Message, PrivateMessage, EventTypes, Event, ChannelPrivacyTypes
