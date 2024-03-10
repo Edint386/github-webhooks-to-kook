@@ -37,3 +37,51 @@ bot启动的时候，你可能会接收到下面这个报错。直接忽略即�
 /home/muxue/kook/webhook/code/main.py:285: DeprecationWarning: There is no current event loop
   asyncio.gather(web._run_app(app, host='127.0.0.1', port=5461), bot.start()))
 ```
+
+
+### 使用指南
+首先在kook 官网上新建一个机器人
+
+https://developer.kookapp.cn/app/index
+
+![alt text](./image/image.png)
+设置websocket 然后保存好token
+
+![alt text](./image/image2.png)
+
+将本项目部署在公网服务器，或者https://zeabur.com/ 中
+
+按照之前的prepare，将token填入config
+运行命令
+```
+pip3 install -r requirements.txt
+python3 main.py
+```
+然后我们访问
+http://[your_ip]:[your_port]
+如果有如下文字则部署成功
+![alt text](./image/image3.png)
+#### 邀请机器人
+在开发者界面，点击邀请链接要请进入我们想要的服务器即可
+![alt text](./image/image4.png)
+在某个频道中，绑定github之后，就可以收到push信息
+![alt text](./image/image5.png)
+
+#### 配置github webhook
+在setting中，将http://[your_ip]:[your_port]/kook
+链接填入其中，即可
+![alt text](./image/image6.png)
+
+
+#### docker 使用
+在当前仓库的目录下执行如下命令
+```
+docker build -t kook_github .
+docke run -d -v "/home/[your_name]/github-webhooks-to-kook:/app/github-webhooks-to-kook:shared" -p 14726:14726 --name kook_github kook_github
+
+```
+然后进入docker container 中即可开启
+```
+cd /app/github-webhooks-to-kook/code
+python3 main.py
+```
