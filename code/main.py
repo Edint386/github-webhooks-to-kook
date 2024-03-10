@@ -97,6 +97,11 @@ async def tgrds():
         name_to_rid = await read_file(path_repo_name)
         bind_request_temp = await read_file(path_bind)
         post_message_record = await read_file(path_ping)
+        # 添加在函数末端
+        if not repo_info:
+            repo_info = {'github': {}, 'gitee': {}}
+        if not post_message_record:
+            post_message_record = {'github': {}, 'gitee': {}}
     except:
         print(f"ERR while starting!\n{traceback.format_exc()}")
         os._exit(-1)
@@ -199,8 +204,6 @@ async def webhook(request: web.Request):
         ahash = data['after'][:7] if 'after' in data else ''
         compare = data['compare'] if 'compare' in data else ''
         
-        post_message_record = {"github": {}, "gitee": {}}
-        repo_info = {'gitee': {}, 'github': {}}
    
         post_message_record[platform][did] = {'rid': rid, 'body': data}
         print(f"[{Etype}] from {repo_name}, rid:{rid}")
