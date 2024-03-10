@@ -66,7 +66,7 @@ repo_info_ex = {'gitee': {}, 'github': {
 name_to_rid = {}
 name_to_rid_ex = {'Edint386/github-wehbhook-to-kook': {'github': '123456(repo_id)', 'gitee': ''}}
 
-post_message_record = {'github': {}, 'gitee': {}}
+post_message_record = {"github": {}, "gitee": {}}
 post_message_record_ex = {
     'github': {'xxxxxx-xxxxxx-xxxxxx-xxxxx-xxxxx': {'rid': '123456', 'time': '1666666666', 'body': {}}}, 'gitee': {}}
 
@@ -198,7 +198,10 @@ async def webhook(request: web.Request):
         bhash = data['before'][:7] if 'before' in data else ''
         ahash = data['after'][:7] if 'after' in data else ''
         compare = data['compare'] if 'compare' in data else ''
-
+        
+        post_message_record = {"github": {}, "gitee": {}}
+        repo_info = {'gitee': {}, 'github': {}}
+   
         post_message_record[platform][did] = {'rid': rid, 'body': data}
         print(f"[{Etype}] from {repo_name}, rid:{rid}")
         if repo_name not in name_to_rid:
@@ -604,4 +607,4 @@ if __name__ == '__main__':
     # loop = asyncio.new_event_loop()
     # timeout = aiohttp.ClientTimeout(total=10)
     asyncio.get_event_loop().run_until_complete(
-        asyncio.gather(web._run_app(app, host='127.0.0.1', port=14726), bot.start()))
+        asyncio.gather(web._run_app(app, host='0.0.0.0', port=14726), bot.start()))
