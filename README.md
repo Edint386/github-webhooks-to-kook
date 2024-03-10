@@ -68,7 +68,7 @@ http://[your_ip]:[your_port]
 ![alt text](./image/image5.png)
 
 #### 配置github webhook
-在setting中，将http://[your_ip]:[your_port]/kook
+在setting中，将http://[your_ip]:[your_port]/hook
 链接填入其中，即可
 ![alt text](./image/image6.png)
 
