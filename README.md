@@ -10,6 +10,8 @@
 ## 注意事项
 
 ### 配置文件
+
+
 使用前，请在`code/config`文件夹中添加`config.json`写入你的`kook-bot-token(websocket）`
 
 示例如下
@@ -26,6 +28,14 @@ did_temp.json
 secret.json
 ```
 内容需填为`{}` 否则会影响bot开机加载文件
+
+----
+update 2024-03
+
+在根目录直接执行run.sh脚本，即可生成，只需要填写token
+```
+./run.sh
+```
 
 ### 关于event loop报错
 
